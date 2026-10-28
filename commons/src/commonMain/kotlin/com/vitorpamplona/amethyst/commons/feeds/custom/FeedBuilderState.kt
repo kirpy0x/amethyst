@@ -22,9 +22,11 @@ package com.vitorpamplona.amethyst.commons.feeds.custom
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.vitorpamplona.amethyst.commons.model.DefaultMinTrustScore
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.utils.TimeUtils
 import kotlinx.collections.immutable.toImmutableList
@@ -64,8 +66,12 @@ class FeedBuilderState(
             (initial?.source as? FeedSource.Filter)?.kinds?.let { addAll(it) }
         }
 
+    private val savedMinWot = (initial?.source as? FeedSource.Filter)?.minWotScore
+    var limitToWebOfTrust by mutableStateOf(savedMinWot != null)
+    var minWotScore by mutableIntStateOf(savedMinWot ?: DefaultMinTrustScore)
+
     val isValid: Boolean
-        get() = name.isNotBlank() && (hashtags.isNotEmpty() || authors.isNotEmpty() || relays.isNotEmpty())
+        get() = name.isNotBlank() && (hashtags.isNotEmpty() || authors.isNotEmpty() || relays.isNotEmpty() || limitToWebOfTrust)
 
     private val editId: String? = initial?.id
 
@@ -79,6 +85,7 @@ class FeedBuilderState(
                 excludeAuthors = excludeAuthors.toImmutableList(),
                 excludeKeywords = excludeKeywords.toImmutableList(),
                 kinds = kinds.toImmutableList(),
+                minWotScore = if (limitToWebOfTrust) minWotScore.coerceIn(0, 100) else null,
             )
         return FeedDefinition(
             id = editId ?: Uuid.random().toString(),

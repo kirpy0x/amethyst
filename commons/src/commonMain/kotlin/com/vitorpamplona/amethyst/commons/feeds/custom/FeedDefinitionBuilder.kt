@@ -87,6 +87,7 @@ class FilterBuilder {
     val excludeAuthors = mutableListOf<HexKey>()
     val excludeKeywords = mutableListOf<String>()
     val kinds = mutableListOf<Int>()
+    var minWotScore: Int? = null
 
     fun build(): FeedSource.Filter =
         FeedSource.Filter(
@@ -96,6 +97,7 @@ class FilterBuilder {
             excludeAuthors = excludeAuthors.toImmutableList(),
             excludeKeywords = excludeKeywords.toImmutableList(),
             kinds = kinds.toImmutableList(),
+            minWotScore = minWotScore,
         )
 }
 

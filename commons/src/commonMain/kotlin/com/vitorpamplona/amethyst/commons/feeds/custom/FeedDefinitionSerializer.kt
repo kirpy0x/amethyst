@@ -105,6 +105,8 @@ object FeedDefinitionSerializer {
                         "kinds",
                         buildJsonArray { source.kinds.forEach { add(JsonPrimitive(it)) } },
                     )
+                    // Omitted when off, so feeds saved before this field keep their exact JSON.
+                    source.minWotScore?.let { put("minWotScore", it) }
                 }
 
                 is FeedSource.PeopleList -> {
@@ -154,6 +156,7 @@ object FeedDefinitionSerializer {
                     excludeAuthors = node.stringList("excludeAuthors") ?: return null,
                     excludeKeywords = node.stringList("excludeKeywords") ?: return null,
                     kinds = node.intList("kinds") ?: return null,
+                    minWotScore = node.intOrNull("minWotScore")?.takeIf { it in 0..100 },
                 )
             }
 

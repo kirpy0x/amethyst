@@ -47,6 +47,12 @@ sealed interface FeedSource {
         val excludeAuthors: ImmutableList<HexKey> = persistentListOf(),
         val excludeKeywords: ImmutableList<String> = persistentListOf(),
         val kinds: ImmutableList<Int> = persistentListOf(),
+        /**
+         * When set, a post stays only if the account's web of trust ranks its author at
+         * this score or above. Null does not limit the feed. A rank of 0 is not in the
+         * network (the provider uses it to remove someone).
+         */
+        val minWotScore: Int? = null,
     ) : FeedSource
 
     @Immutable

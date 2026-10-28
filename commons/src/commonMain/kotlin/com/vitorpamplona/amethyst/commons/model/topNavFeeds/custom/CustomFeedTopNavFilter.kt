@@ -32,6 +32,8 @@ import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.normalizeRelayUrlOrNull
 import com.vitorpamplona.quartz.nip01Core.tags.hashtags.isTaggedHashes
+import com.vitorpamplona.quartz.nip85TrustedAssertions.users.index.memberRank
+import com.vitorpamplona.quartz.nip85TrustedAssertions.users.index.passesMinRank
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,10 +42,17 @@ import kotlinx.coroutines.flow.map
 
 /**
  * A feed the user built: every condition that is set must hold (the kinds, the authors, at least one
- * of the hashtags), and nothing from an excluded author or containing an excluded keyword passes.
- * The relays come from, in order: the feed's own relays, the proxy relays, the authors' outbox
- * relays, or the account's follows relays (for a hashtag-only feed). A feed whose definition is gone
- * ([source] null) shows nothing.
+ * of the hashtags, and a web-of-trust score at or above [FeedSource.Filter.minWotScore]), and nothing
+ * from an excluded author or containing an excluded keyword passes. The relays come from, in order:
+ * the feed's own relays, the proxy relays, the authors' outbox relays, or the account's follows
+ * relays (for a hashtag-only feed, or a web-of-trust feed that names no authors). A feed whose
+ * definition is gone ([source] null) shows nothing.
+ *
+ * The trust index stores only 128 bits of each pubkey, so a web-of-trust limit cannot be asked of
+ * the relay. The relay is asked as usual and [match] drops authors below the score. While that
+ * limit is on and the feed names no authors, the request asks for more events, because most of
+ * them will be dropped. [wotActive] is false until the provider's whole set of scores is loaded;
+ * until then a limited feed matches nothing, rather than showing everyone.
  */
 @Immutable
 class CustomFeedTopNavFilter(
@@ -51,6 +60,8 @@ class CustomFeedTopNavFilter(
     val followsRelays: StateFlow<Set<NormalizedRelayUrl>>,
     val blockedRelays: StateFlow<Set<NormalizedRelayUrl>>,
     val proxyRelays: Set<NormalizedRelayUrl>,
+    val wotActive: Boolean = false,
+    val wotRankOf: (HexKey) -> Int? = { null },
 ) : IFeedTopNavFilter {
     val authors: Set<HexKey> = source?.authors?.toSet().orEmpty()
     val hashtags: Set<String> = source?.hashtags?.mapTo(mutableSetOf()) { it.lowercase() }.orEmpty()
@@ -59,7 +70,15 @@ class CustomFeedTopNavFilter(
     val excludeKeywords: List<String> = source?.excludeKeywords?.filter { it.isNotBlank() }.orEmpty()
     val ownRelays: Set<NormalizedRelayUrl> = source?.relays?.mapNotNullTo(mutableSetOf()) { it.normalizeRelayUrlOrNull() }.orEmpty()
 
-    override fun matchAuthor(pubkey: HexKey): Boolean = source != null && pubkey !in excludeAuthors && (authors.isEmpty() || pubkey in authors)
+    override fun matchAuthor(pubkey: HexKey): Boolean =
+        source != null && pubkey !in excludeAuthors && (authors.isEmpty() || pubkey in authors) && passesWebOfTrust(pubkey)
+
+    /** A rank of 0 removes someone from the network, same as no card at all. */
+    private fun passesWebOfTrust(pubkey: HexKey): Boolean {
+        val minimum = source?.minWotScore ?: return true
+        if (!wotActive) return false
+        return passesMinRank(memberRank(wotRankOf(pubkey)), minimum)
+    }
 
     override fun match(noteEvent: Event): Boolean {
         if (source == null) return false
@@ -69,7 +88,15 @@ class CustomFeedTopNavFilter(
         return excludeKeywords.none { noteEvent.content.contains(it, ignoreCase = true) }
     }
 
-    private fun scope(authors: Set<HexKey>) = CustomFeedTopNavPerRelayFilter(authors, hashtags, kinds)
+    private fun scope(authors: Set<HexKey>) =
+        CustomFeedTopNavPerRelayFilter(
+            authors,
+            hashtags,
+            kinds,
+            // No author list plus a trust limit means the relay sends everyone and we drop most of
+            // them, so ask for a wider window than a feed that already names its authors.
+            limit = if (source?.minWotScore != null && authors.isEmpty()) WEB_OF_TRUST_RELAY_LIMIT else DEFAULT_RELAY_LIMIT,
+        )
 
     private fun everywhere(relays: Set<NormalizedRelayUrl>) = CustomFeedTopNavPerRelayFilterSet(relays.associateWith { scope(authors) })
 
@@ -110,6 +137,7 @@ class CustomFeedTopNavPerRelayFilter(
     val authors: Set<HexKey>,
     val hashtags: Set<String>,
     val kinds: Set<Int>,
+    val limit: Int = DEFAULT_RELAY_LIMIT,
 ) : IFeedTopNavPerRelayFilter
 
 class CustomFeedTopNavPerRelayFilterSet(
@@ -119,3 +147,6 @@ class CustomFeedTopNavPerRelayFilterSet(
 
     override fun relays() = set.keys
 }
+
+private const val DEFAULT_RELAY_LIMIT = 200
+private const val WEB_OF_TRUST_RELAY_LIMIT = 500

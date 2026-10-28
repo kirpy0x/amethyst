@@ -169,6 +169,7 @@ import com.vitorpamplona.amethyst.commons.model.topNavFeeds.IFeedTopNavFilter
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.OutboxLoaderState
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.SelectedListAuthorsState
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.TopFilter
+import com.vitorpamplona.amethyst.commons.model.topNavFeeds.custom.WebOfTrustFeedGate
 import com.vitorpamplona.amethyst.commons.model.trustedAssertions.TrustProviderListState
 import com.vitorpamplona.amethyst.commons.model.trustedAssertions.TrustProviderRow
 import com.vitorpamplona.amethyst.commons.model.trustedAssertions.publicRows
@@ -983,6 +984,27 @@ class Account(
 
     override fun trustRankOf(pubkey: HexKey): Int? = trustNetwork.rankOf(pubkey)
 
+    /**
+     * What a custom feed's web-of-trust limit reads. [WebOfTrustFeedGate.generation] is the
+     * loaded index file's generation, which changes each time that index is saved, so Home
+     * re-filters. Ranks themselves are read live through [trustRankOf].
+     */
+    val webOfTrustFeedGate: StateFlow<WebOfTrustFeedGate> =
+        trustNetwork.network
+            .map { network ->
+                WebOfTrustFeedGate(
+                    active = network != null,
+                    generation = network?.header?.generation ?: 0L,
+                )
+            }.stateIn(
+                scope,
+                SharingStarted.Eagerly,
+                WebOfTrustFeedGate(
+                    active = trustNetwork.isActive,
+                    generation = trustNetwork.network.value?.header?.generation ?: 0L,
+                ),
+            )
+
     val followSetDecryptionCache = FollowSetDecryptionCache(signer)
     val blockPeopleList = BlockPeopleListState(signer, cache, followSetDecryptionCache, scope)
     val followSets = FollowSetsState(signer, cache, followSetDecryptionCache, scope)
@@ -1288,6 +1310,8 @@ class Account(
             favoriteAlgoFeedAddresses = favoriteAlgoFeedsList.flow,
             interestSetHashtags = interestSets.hashtagsByIdentifier,
             customFeeds = settings.customFeeds,
+            wotGate = webOfTrustFeedGate,
+            wotRankOf = this::trustRankOf,
         ).flow
 
     // App-ready Feeds

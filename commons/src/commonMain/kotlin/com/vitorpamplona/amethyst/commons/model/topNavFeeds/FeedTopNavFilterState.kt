@@ -36,6 +36,7 @@ import com.vitorpamplona.amethyst.commons.model.topNavFeeds.allUserFollows.Kind3
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.aroundMe.AroundMeFeedFlow
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.aroundMe.GeohashFeedFlow
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.custom.CustomFeedFlow
+import com.vitorpamplona.amethyst.commons.model.topNavFeeds.custom.WebOfTrustFeedGate
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.favoriteAlgoFeeds.AllFavoriteAlgoFeedsFlow
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.favoriteAlgoFeeds.FavoriteAlgoFeedFlow
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.global.GlobalFeedFlow
@@ -45,6 +46,7 @@ import com.vitorpamplona.amethyst.commons.model.topNavFeeds.mine.MineFeedFlow
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.noteBased.NoteFeedFlow
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.relay.RelayFeedFlow
 import com.vitorpamplona.quartz.nip01Core.core.Address
+import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.NormalizedRelayUrl
 import com.vitorpamplona.quartz.nip01Core.relay.normalizer.normalizeRelayUrl
 import com.vitorpamplona.quartz.nip01Core.signers.NostrSigner
@@ -78,6 +80,8 @@ class FeedTopNavFilterState(
     val favoriteAlgoFeedAddresses: StateFlow<Set<Address>>,
     val interestSetHashtags: StateFlow<Map<String, Set<String>>> = MutableStateFlow(emptyMap()),
     val customFeeds: StateFlow<List<FeedDefinition>> = MutableStateFlow(emptyList()),
+    val wotGate: StateFlow<WebOfTrustFeedGate> = MutableStateFlow(WebOfTrustFeedGate.INACTIVE),
+    val wotRankOf: (HexKey) -> Int? = { null },
 ) {
     fun loadFlowsFor(listName: TopFilter): IFeedFlowsType =
         when (listName) {
@@ -136,7 +140,7 @@ class FeedTopNavFilterState(
             }
 
             is TopFilter.CustomFeed -> {
-                CustomFeedFlow(listName.id, customFeeds, followsRelays, blockedRelays, proxyRelays)
+                CustomFeedFlow(listName.id, customFeeds, followsRelays, blockedRelays, proxyRelays, wotGate, wotRankOf)
             }
 
             is TopFilter.Relay -> {

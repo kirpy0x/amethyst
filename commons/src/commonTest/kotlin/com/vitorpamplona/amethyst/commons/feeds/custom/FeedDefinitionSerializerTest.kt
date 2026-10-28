@@ -23,6 +23,7 @@ package com.vitorpamplona.amethyst.commons.feeds.custom
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FeedDefinitionSerializerTest {
@@ -275,6 +276,29 @@ class FeedDefinitionSerializerTest {
         assertEquals(persistentListOf("bitcoin", "btc"), source.hashtags)
         assertEquals(persistentListOf("abc"), source.authors)
         assertEquals(persistentListOf(1, 6), source.kinds)
+        assertNull(source.minWotScore)
+    }
+
+    @Test
+    fun roundTripsAWebOfTrustMinimumAndKeepsItOffTheWireWhenUnset() {
+        val limited =
+            FeedDefinition(
+                id = "wot",
+                name = "Network",
+                emoji = "",
+                pinned = false,
+                pinOrder = Int.MAX_VALUE,
+                source = FeedSource.Filter(minWotScore = 12),
+                refreshMode = RefreshMode.LIVE_STREAM,
+                createdAt = 3L,
+            )
+
+        val json = FeedDefinitionSerializer.serializeList(listOf(limited))
+        assertTrue(""""minWotScore":12""" in json)
+        assertEquals(12, (FeedDefinitionSerializer.deserializeList(json).single().source as FeedSource.Filter).minWotScore)
+
+        val unlimited = limited.copy(source = FeedSource.Filter())
+        assertTrue("minWotScore" !in FeedDefinitionSerializer.serializeList(listOf(unlimited)))
     }
 
     @Test

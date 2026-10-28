@@ -65,6 +65,7 @@ import com.vitorpamplona.amethyst.commons.resources.custom_feeds_empty
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_new
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_summary_authors
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_summary_relays
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_summary_wot
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_title
 import com.vitorpamplona.amethyst.commons.ui.navigation.navs.INav
 import com.vitorpamplona.amethyst.commons.ui.navigation.topbars.TopBarWithBackButton
@@ -184,5 +185,6 @@ private fun summaryOf(feed: FeedDefinition): String {
     if (source.authors.isNotEmpty()) parts += pluralStringRes(Res.plurals.custom_feeds_summary_authors, source.authors.size, source.authors.size)
     if (source.hashtags.isNotEmpty()) parts += source.hashtags.joinToString(" ") { "#$it" }
     if (source.relays.isNotEmpty()) parts += pluralStringRes(Res.plurals.custom_feeds_summary_relays, source.relays.size, source.relays.size)
+    source.minWotScore?.let { parts += stringRes(Res.string.custom_feeds_summary_wot, it) }
     return parts.joinToString(" · ")
 }

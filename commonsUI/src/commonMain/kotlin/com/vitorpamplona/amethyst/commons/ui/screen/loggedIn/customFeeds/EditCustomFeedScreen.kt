@@ -40,11 +40,14 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,9 +56,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vitorpamplona.amethyst.commons.feeds.custom.FeedBuilderState
 import com.vitorpamplona.amethyst.commons.icons.symbols.Icon
 import com.vitorpamplona.amethyst.commons.icons.symbols.MaterialSymbols
+import com.vitorpamplona.amethyst.commons.model.navigation.Route
 import com.vitorpamplona.amethyst.commons.model.topNavFeeds.TopFilter
 import com.vitorpamplona.amethyst.commons.resources.Res
 import com.vitorpamplona.amethyst.commons.resources.add
@@ -83,6 +88,13 @@ import com.vitorpamplona.amethyst.commons.resources.custom_feeds_relays
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_relays_explainer
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_remove
 import com.vitorpamplona.amethyst.commons.resources.custom_feeds_search_people
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_summary_wot
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_wot
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_wot_explainer
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_wot_limit
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_wot_not_ready
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_wot_score_value
+import com.vitorpamplona.amethyst.commons.resources.custom_feeds_wot_set_up
 import com.vitorpamplona.amethyst.commons.ui.components.PlatformBackHandler
 import com.vitorpamplona.amethyst.commons.ui.navigation.navs.INav
 import com.vitorpamplona.amethyst.commons.ui.navigation.topbars.SavingTopBar
@@ -106,6 +118,7 @@ import com.vitorpamplona.quartz.nip71Video.VideoNormalEvent
 import com.vitorpamplona.quartz.nip71Video.VideoShortEvent
 import com.vitorpamplona.quartz.nip84Highlights.HighlightEvent
 import org.jetbrains.compose.resources.StringResource
+import kotlin.math.roundToInt
 
 // Room for a family or flag emoji (several code points joined), never half of a surrogate pair.
 private const val MAX_EMOJI_CODE_POINTS = 8
@@ -134,8 +147,8 @@ private val kindPresets: List<Pair<StringResource, List<Int>>> =
 
 /**
  * Creates a custom feed, or edits the one with [id]: a name and emoji, the people, hashtags and
- * relays it reads (all that are set must match), the kinds it shows, and the people and words it
- * hides. Saving a new feed also shows it on Home.
+ * relays it reads (all that are set must match), the kinds it shows, an optional web-of-trust
+ * minimum score, and the people and words it hides. Saving a new feed also shows it on Home.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -230,6 +243,8 @@ fun EditCustomFeedScreen(
                 WordList(state.relays, normalize = { it.trim().normalizeRelayUrlOrNull()?.url })
             }
 
+            WebOfTrustLimit(state, accountViewModel, nav)
+
             Section(Res.string.custom_feeds_exclude_authors, null) {
                 PeoplePicker(state.excludeAuthors, accountViewModel, nav)
             }
@@ -253,6 +268,74 @@ private fun Section(
             Text(stringRes(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         content()
+    }
+}
+
+/**
+ * Limits the feed to people the account's web of trust ranks at or above a score. Hidden until a
+ * provider's scores are downloaded, except when the feed already has a limit, so editing it does
+ * not silently drop that limit.
+ */
+@Composable
+private fun WebOfTrustLimit(
+    state: FeedBuilderState,
+    accountViewModel: AccountViewModel,
+    nav: INav,
+) {
+    val network by accountViewModel.account.trustNetwork.network.collectAsStateWithLifecycle()
+    val ready = network != null
+    val loaded = network
+    var dragging by remember(state.minWotScore) { mutableFloatStateOf(state.minWotScore.toFloat()) }
+
+    Section(
+        Res.string.custom_feeds_wot,
+        if (ready) Res.string.custom_feeds_wot_explainer else Res.string.custom_feeds_wot_not_ready,
+    ) {
+        if (!ready && !state.limitToWebOfTrust) {
+            TextButton(onClick = { nav.nav(Route.WebOfTrust) }) {
+                Text(stringRes(Res.string.custom_feeds_wot_set_up))
+            }
+            return@Section
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(stringRes(Res.string.custom_feeds_wot_limit), modifier = Modifier.weight(1f))
+            Switch(
+                checked = state.limitToWebOfTrust,
+                onCheckedChange = { state.limitToWebOfTrust = it },
+                enabled = ready || state.limitToWebOfTrust,
+            )
+        }
+
+        val loadedNetwork = loaded
+        if (!ready) {
+            TextButton(onClick = { nav.nav(Route.WebOfTrust) }) {
+                Text(stringRes(Res.string.custom_feeds_wot_set_up))
+            }
+            Text(
+                stringRes(Res.string.custom_feeds_summary_wot, state.minWotScore),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else if (state.limitToWebOfTrust && loadedNetwork != null) {
+            val threshold = dragging.roundToInt().coerceIn(0, 100)
+            val people = loadedNetwork.index.countAtLeast(threshold.coerceAtLeast(1))
+            Slider(
+                value = dragging,
+                onValueChange = { dragging = it },
+                onValueChangeFinished = { state.minWotScore = dragging.roundToInt().coerceIn(0, 100) },
+                valueRange = 0f..100f,
+            )
+            Text(
+                stringRes(Res.string.custom_feeds_wot_score_value, threshold, people),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

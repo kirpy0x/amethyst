@@ -52,7 +52,7 @@ fun filterHomePostsByCustomFeed(
                     kinds = scope.kinds.ifEmpty { CustomFeedDefaultKinds }.sorted(),
                     authors = scope.authors.ifEmpty { null }?.sorted(),
                     tags = scope.hashtags.ifEmpty { null }?.let { mapOf("t" to hashtagAlts(it).sorted()) },
-                    limit = 200,
+                    limit = scope.limit,
                     since = since?.get(relay)?.time ?: defaultSince,
                 ),
         )

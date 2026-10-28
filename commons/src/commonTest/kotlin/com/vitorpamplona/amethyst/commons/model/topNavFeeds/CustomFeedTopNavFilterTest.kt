@@ -106,5 +106,65 @@ class CustomFeedTopNavFilterTest {
 
         assertNull(req.filter.authors)
         assertTrue(1 in req.filter.kinds!!)
+        assertEquals(200, req.filter.limit)
+    }
+
+    @Test
+    fun webOfTrustKeepsAuthorsAtOrAboveTheMinimum() {
+        val ranks = mapOf(alice to 10, bob to 9)
+        val feed =
+            CustomFeedTopNavFilter(
+                FeedSource.Filter(hashtags = persistentListOf("nostr"), minWotScore = 10),
+                MutableStateFlow(setOf(relay)),
+                MutableStateFlow(emptySet()),
+                emptySet(),
+                wotActive = true,
+                wotRankOf = { ranks[it] },
+            )
+
+        assertTrue(feed.match(note(alice, hashtags = listOf("nostr"))))
+        assertFalse(feed.match(note(bob, hashtags = listOf("nostr"))), "below the minimum")
+        assertFalse(feed.match(note("c".repeat(64), hashtags = listOf("nostr"))), "no score")
+        assertFalse(feed.matchAuthor(bob))
+    }
+
+    @Test
+    fun aRankOfZeroIsOutOfTheNetwork() {
+        val feed =
+            CustomFeedTopNavFilter(
+                FeedSource.Filter(minWotScore = 0),
+                MutableStateFlow(setOf(relay)),
+                MutableStateFlow(emptySet()),
+                emptySet(),
+                wotActive = true,
+                wotRankOf = { if (it == alice) 0 else 1 },
+            )
+
+        assertFalse(feed.match(note(alice)))
+        assertTrue(feed.match(note(bob)))
+    }
+
+    @Test
+    fun webOfTrustShowsNothingUntilScoresAreLoaded() {
+        val feed =
+            CustomFeedTopNavFilter(
+                FeedSource.Filter(minWotScore = 1),
+                MutableStateFlow(setOf(relay)),
+                MutableStateFlow(emptySet()),
+                emptySet(),
+                wotActive = false,
+                wotRankOf = { 100 },
+            )
+
+        assertFalse(feed.match(note(alice)))
+        assertEquals(500, feed.startValue(StubCache()).set.getValue(relay).limit)
+    }
+
+    @Test
+    fun namedAuthorsStillUseTheSmallerRequest() {
+        val feed =
+            filter(FeedSource.Filter(authors = persistentListOf(alice), relays = persistentListOf("wss://relay.example.com"), minWotScore = 10))
+
+        assertEquals(200, feed.startValue(StubCache()).set.getValue(relay).limit)
     }
 }

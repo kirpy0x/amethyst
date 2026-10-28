@@ -7275,7 +7275,7 @@
     <string name="custom_feeds_edit_title">Edit feed</string>
     <string name="custom_feeds_emoji">Emoji</string>
     <string name="custom_feeds_name">Name</string>
-    <string name="custom_feeds_invalid">Give the feed a name and at least one person, hashtag or relay.</string>
+    <string name="custom_feeds_invalid">Give the feed a name and at least one person, hashtag, relay, or a web of trust limit.</string>
     <string name="custom_feeds_authors">People</string>
     <string name="custom_feeds_authors_explainer">Only posts by these people.</string>
     <string name="custom_feeds_hashtags">Hashtags</string>
@@ -7295,6 +7295,13 @@
     <string name="custom_feeds_exclude_keywords">Hide posts containing</string>
     <string name="custom_feeds_remove">Remove</string>
     <string name="custom_feeds_search_people">Search by name, NIP-05 or npub</string>
+    <string name="custom_feeds_wot">Web of trust</string>
+    <string name="custom_feeds_wot_explainer">Only posts by people your web of trust scores at or above this minimum. Amethyst reads your usual relays, then drops anyone below the score. This minimum is only for this feed.</string>
+    <string name="custom_feeds_wot_not_ready">Set up a web of trust provider and download its scores to limit a feed to people in your network.</string>
+    <string name="custom_feeds_wot_limit">Limit to my web of trust</string>
+    <string name="custom_feeds_wot_set_up">Set up web of trust</string>
+    <string name="custom_feeds_wot_score_value">Score %1$d or higher · %2$d people</string>
+    <string name="custom_feeds_summary_wot">Web of trust ≥ %1$d</string>
     <string name="deck_mode">Deck</string>
     <string name="deck_mode_description">On wide windows, show extra columns beside the main screen, each with its own screen and history. Save sets of columns as workspaces.</string>
     <string name="deck_workspaces">Workspaces</string>
